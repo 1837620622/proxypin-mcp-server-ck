@@ -19,11 +19,9 @@ ProxyPin 的 MCP 服务器，作用通俗点说就是 **抓包软件有啥功能
 - Python 依赖: `fastmcp`, `requests`
 
 安装
-```bash
-git clone https://your-repo/proxypin-mcp-server.git
-cd proxypin-mcp-server
-pip install fastmcp requests
-```
+1. 下载内置mcp的proxypin：release的zip是win版的proxypin，其他平台的懒得编译了因为我不方便测试）（有需要的去我的proxypin仓库拉取源代码然后编译）
+2. 下载mcp的py文件：release中的py文件，下载了随便找个地方放；
+
 
 使用
 1. 启动 ProxyPin 然后能正常抓包；默认端口是9099
@@ -40,8 +38,8 @@ python proxypin_mcp_server.py
 在 IDE 中配置 MCP（示例）：
 ```json
 "proxypin-mcp": {
-	"command": "python",
-	"args": ["path/to/proxypin_mcp_server.py"],
+	"command": "你的python.exe路径",
+	"args": ["你下载的py文件路径"],
 	"disabled": false,
 	"autoApprove": [
 		"search_requests", "get_request_details", "replay_request", "generate_code", "get_curl",
