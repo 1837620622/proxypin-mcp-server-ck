@@ -48,7 +48,7 @@ __version__ = "2.0.0-chuankangkk"
 __author__ = "传康KK (GitHub: 1837620622)"
 __contact__ = "微信: 1837620622 | 邮箱: 2040168455@qq.com"
 
-# 日志配置
+# 日志配置 - 优化版本
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -59,18 +59,24 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# 减少第三方库的日志级别
+logging.getLogger('urllib3').setLevel(logging.WARNING)
+logging.getLogger('requests').setLevel(logging.WARNING)
+
 # ProxyPin HTTP API配置
 PROXYPIN_HOST = os.getenv("PROXYPIN_HOST", "127.0.0.1")
 PROXYPIN_PORT = int(os.getenv("PROXYPIN_PORT", "17777"))
 BASE_URL = f"http://{PROXYPIN_HOST}:{PROXYPIN_PORT}"
 MESSAGES_URL = f"{BASE_URL}/messages"
 
-# 连接池优化配置
+# 连接池优化配置 - 增强版
 MAX_RETRIES = 3
-BACKOFF_FACTOR = 0.3
+BACKOFF_FACTOR = 0.5
 TIMEOUT = 30
-POOL_CONNECTIONS = 10
-POOL_MAXSIZE = 20
+POOL_CONNECTIONS = 20
+POOL_MAXSIZE = 50
+POOL_BLOCK = False
+KEEP_ALIVE = True
 
 # 创建优化的Session - 传康KK性能增强
 def create_optimized_session() -> requests.Session:
@@ -90,7 +96,8 @@ def create_optimized_session() -> requests.Session:
     adapter = HTTPAdapter(
         max_retries=retry_strategy,
         pool_connections=POOL_CONNECTIONS,
-        pool_maxsize=POOL_MAXSIZE
+        pool_maxsize=POOL_MAXSIZE,
+        pool_block=POOL_BLOCK
     )
     
     session.mount("http://", adapter)
@@ -100,8 +107,15 @@ def create_optimized_session() -> requests.Session:
     session.headers.update({
         'User-Agent': f'ProxyPin-MCP-Server/{__version__} (by {__author__})',
         'Accept': 'application/json',
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Connection': 'keep-alive' if KEEP_ALIVE else 'close'
     })
+    
+    # 启用HTTP keep-alive
+    if KEEP_ALIVE:
+        from urllib3 import PoolManager
+        session.get_adapter('http://').config._poolmanager_kw.setdefault('block', POOL_BLOCK)
+        session.get_adapter('https://').config._poolmanager_kw.setdefault('block', POOL_BLOCK)
     
     logger.info(f"已创建优化HTTP会话连接 - {__author__} 性能增强版")
     return session
@@ -206,7 +220,7 @@ def call_proxypin_tool(tool_name: str, arguments: Optional[Dict[str, Any]] = Non
         raise Exception(f"无法连接到ProxyPin: 请确保服务运行在 {BASE_URL}")
         
     except requests.exceptions.HTTPError as e:
-        status_code = getattr(response, 'status_code', 'unknown') if 'response' in locals() else 'unknown'
+        status_code = getattr(e.response, 'status_code', 'unknown') if hasattr(e, 'response') and e.response else 'unknown'
         logger.error(f"ProxyPin HTTP错误: {e}, 状态码: {status_code}")
         raise Exception(f"ProxyPin HTTP错误: {e}")
         
@@ -342,33 +356,122 @@ def get_curl(request_id: str):
 
 @mcp.tool()
 def block_url(url_pattern: str, block_type: str = "blockRequest"):
-    """屏蔽URL"""
-    return call_proxypin_tool("block_url", {"url_pattern": url_pattern, "block_type": block_type})
+    """屏蔽URL - 传康KK 增强版
+    
+    Args:
+        url_pattern: URL模式（支持通配符）
+        block_type: 屏蔽类型（blockRequest/blockResponse）
+    """
+    log_tool_call("block_url", url_pattern=url_pattern, block_type=block_type)
+    
+    # 输入验证
+    if not url_pattern or not url_pattern.strip():
+        raise ValueError("URL模式不能为空")
+    
+    if block_type not in ["blockRequest", "blockResponse"]:
+        raise ValueError("屏蔽类型必须是 blockRequest 或 blockResponse")
+    
+    return call_proxypin_tool("block_url", {
+        "url_pattern": url_pattern.strip(), 
+        "block_type": block_type
+    })
 
 @mcp.tool()
 def add_response_rewrite(url_pattern: str, rewrite_type: str, value: str, key: str = None):
-    """添加响应重写规则"""
-    args = {"url_pattern": url_pattern, "rewrite_type": rewrite_type, "value": value}
+    """添加响应重写规则 - 传康KK 增强版
+    
+    Args:
+        url_pattern: URL模式
+        rewrite_type: 重写类型
+        value: 重写值
+        key: 可选的键名
+    """
+    log_tool_call("add_response_rewrite", 
+                  url_pattern=url_pattern, 
+                  rewrite_type=rewrite_type, 
+                  value=value, 
+                  key=key)
+    
+    # 输入验证
+    if not url_pattern or not url_pattern.strip():
+        raise ValueError("URL模式不能为空")
+    if not rewrite_type or not rewrite_type.strip():
+        raise ValueError("重写类型不能为空")
+    if not value or not value.strip():
+        raise ValueError("重写值不能为空")
+    
+    args = {
+        "url_pattern": url_pattern.strip(), 
+        "rewrite_type": rewrite_type.strip(), 
+        "value": value.strip()
+    }
     if key:
-        args["key"] = key
+        args["key"] = key.strip()
+    
     return call_proxypin_tool("add_response_rewrite", args)
 
 @mcp.tool()
 def add_request_rewrite(url_pattern: str, rewrite_type: str, key: str, value: str):
-    """添加请求重写规则"""
+    """添加请求重写规则 - 传康KK 增强版
+    
+    Args:
+        url_pattern: URL模式
+        rewrite_type: 重写类型
+        key: 键名
+        value: 键值
+    """
+    log_tool_call("add_request_rewrite", 
+                  url_pattern=url_pattern, 
+                  rewrite_type=rewrite_type, 
+                  key=key, 
+                  value=value)
+    
+    # 输入验证
+    if not url_pattern or not url_pattern.strip():
+        raise ValueError("URL模式不能为空")
+    if not rewrite_type or not rewrite_type.strip():
+        raise ValueError("重写类型不能为空")
+    if not key or not key.strip():
+        raise ValueError("键名不能为空")
+    if not value or not value.strip():
+        raise ValueError("键值不能为空")
+    
     return call_proxypin_tool("add_request_rewrite", {
-        "url_pattern": url_pattern,
-        "rewrite_type": rewrite_type,
-        "key": key,
-        "value": value
+        "url_pattern": url_pattern.strip(),
+        "rewrite_type": rewrite_type.strip(),
+        "key": key.strip(),
+        "value": value.strip()
     })
 
 @mcp.tool()
 def update_script(name: str, url_pattern: str, script_content: str):
-    """创建或更新JavaScript脚本"""
+    """创建或更新JavaScript脚本 - 传康KK 增强版
+    
+    Args:
+        name: 脚本名称
+        url_pattern: URL模式
+        script_content: JavaScript脚本内容
+    """
+    log_tool_call("update_script", 
+                  name=name, 
+                  url_pattern=url_pattern, 
+                  script_content_length=len(script_content) if script_content else 0)
+    
+    # 输入验证
+    if not name or not name.strip():
+        raise ValueError("脚本名称不能为空")
+    if not url_pattern or not url_pattern.strip():
+        raise ValueError("URL模式不能为空")
+    if not script_content or not script_content.strip():
+        raise ValueError("脚本内容不能为空")
+    
+    # 验证脚本内容长度
+    if len(script_content) > 100000:  # 100KB限制
+        raise ValueError("脚本内容过大，最大支持100KB")
+    
     return call_proxypin_tool("update_script", {
-        "name": name,
-        "url_pattern": url_pattern,
+        "name": name.strip(),
+        "url_pattern": url_pattern.strip(),
         "script_content": script_content
     })
 
@@ -389,8 +492,30 @@ def set_config(system_proxy: bool = None, ssl_capture: bool = None):
 
 @mcp.tool()
 def add_host_mapping(domain: str, ip: str):
-    """添加Hosts映射"""
-    return call_proxypin_tool("add_host_mapping", {"domain": domain, "ip": ip})
+    """添加Hosts映射 - 传康KK 增强版
+    
+    Args:
+        domain: 域名
+        ip: IP地址
+    """
+    log_tool_call("add_host_mapping", domain=domain, ip=ip)
+    
+    # 输入验证
+    if not domain or not domain.strip():
+        raise ValueError("域名不能为空")
+    if not ip or not ip.strip():
+        raise ValueError("IP地址不能为空")
+    
+    # 简单的IP地址格式验证
+    import re
+    ip_pattern = r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$'
+    if not re.match(ip_pattern, ip.strip()):
+        raise ValueError("IP地址格式不正确")
+    
+    return call_proxypin_tool("add_host_mapping", {
+        "domain": domain.strip().lower(), 
+        "ip": ip.strip()
+    })
 
 @mcp.tool()
 def get_proxy_status():
@@ -404,20 +529,46 @@ def export_har(limit: int = 100):
 
 @mcp.tool()
 def import_har(har_content: str):
-    """导入HAR文件到ProxyPin
+    """导入HAR文件到ProxyPin - 传康KK 增强版
     
-    参数:
-    - har_content: HAR JSON字符串
+    Args:
+        har_content: HAR JSON字符串
     """
+    log_tool_call("import_har", har_content_length=len(har_content) if har_content else 0)
+    
+    # 输入验证
+    if not har_content or not har_content.strip():
+        raise ValueError("HAR内容不能为空")
+    
+    # 验证HAR格式
+    try:
+        har_data = json.loads(har_content)
+        if not isinstance(har_data, dict) or 'log' not in har_data:
+            raise ValueError("无效的HAR格式：缺少log字段")
+    except json.JSONDecodeError as e:
+        raise ValueError(f"HAR内容不是有效的JSON格式: {e}")
+    
+    # 检查内容大小
+    if len(har_content) > 10000000:  # 10MB限制
+        raise ValueError("HAR文件过大，最大支持10MB")
+    
     return call_proxypin_tool("import_har", {"har_content": har_content})
 
 @mcp.tool()
 def start_proxy(port: int = 9099):
-    """启动代理服务器
+    """启动代理服务器 - 传康KK 增强版
     
-    参数:
-    - port: 代理端口(默认9099)
+    Args:
+        port: 代理端口(默认9099)
     """
+    log_tool_call("start_proxy", port=port)
+    
+    # 输入验证
+    if not isinstance(port, int):
+        raise TypeError("端口必须是整数")
+    if port < 1024 or port > 65535:
+        raise ValueError("端口范围必须在1024-65535之间")
+    
     return call_proxypin_tool("start_proxy", {"port": port})
 
 @mcp.tool()
@@ -460,7 +611,7 @@ def get_statistics():
 
 @mcp.tool()
 def compare_requests(request_id_1: str, request_id_2: str):
-    """对比两个请求的差异
+    """对比两个请求的差异 - 传康KK 增强版
     
     返回详细对比信息：
     - request_header_diff: 请求Header差异
@@ -469,19 +620,43 @@ def compare_requests(request_id_1: str, request_id_2: str):
     - response_body_diff: 响应Body差异(支持JSON diff)
     - duration_diff: 响应时间差异
     """
+    log_tool_call("compare_requests", request_id_1=request_id_1, request_id_2=request_id_2)
+    
+    # 输入验证
+    if not request_id_1 or not request_id_1.strip():
+        raise ValueError("第一个请求ID不能为空")
+    if not request_id_2 or not request_id_2.strip():
+        raise ValueError("第二个请求ID不能为空")
+    if request_id_1.strip() == request_id_2.strip():
+        raise ValueError("两个请求ID不能相同")
+    
     return call_proxypin_tool("compare_requests", {
-        "request_id_1": request_id_1,
-        "request_id_2": request_id_2
+        "request_id_1": request_id_1.strip(),
+        "request_id_2": request_id_2.strip()
     })
 
 @mcp.tool()
 def find_similar_requests(request_id: str, limit: int = 10):
-    """查找与指定请求相似的其他请求
+    """查找与指定请求相似的其他请求 - 传康KK 增强版
     
     相似条件：相同域名、路径和HTTP方法
+    
+    Args:
+        request_id: 参考请求ID
+        limit: 返回结果数量限制
     """
+    log_tool_call("find_similar_requests", request_id=request_id, limit=limit)
+    
+    # 输入验证
+    if not request_id or not request_id.strip():
+        raise ValueError("请求ID不能为空")
+    if not isinstance(limit, int):
+        raise TypeError("limit必须是整数")
+    if limit < 1 or limit > 100:
+        raise ValueError("limit范围必须在1-100之间")
+    
     return call_proxypin_tool("find_similar_requests", {
-        "request_id": request_id,
+        "request_id": request_id.strip(),
         "limit": limit
     })
 
