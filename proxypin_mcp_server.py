@@ -206,7 +206,8 @@ def call_proxypin_tool(tool_name: str, arguments: Optional[Dict[str, Any]] = Non
         raise Exception(f"无法连接到ProxyPin: 请确保服务运行在 {BASE_URL}")
         
     except requests.exceptions.HTTPError as e:
-        logger.error(f"ProxyPin HTTP错误: {e}, 状态码: {response.status_code}")
+        status_code = getattr(response, 'status_code', 'unknown') if 'response' in locals() else 'unknown'
+        logger.error(f"ProxyPin HTTP错误: {e}, 状态码: {status_code}")
         raise Exception(f"ProxyPin HTTP错误: {e}")
         
     except requests.exceptions.RequestException as e:
