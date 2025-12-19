@@ -63,7 +63,11 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        arch: [x64, arm64]
+        include:
+          - arch: arm64
+            target_arch: arm64
+          - arch: x64
+            target_arch: x86_64
     
     steps:
     - name: Checkout code
@@ -82,12 +86,8 @@ jobs:
         
     - name: Build executable
       run: |
-        if [ "${{ matrix.arch }}" = "arm64" ]; then
-          export ARCHFLAGS="-arch arm64"
-          pyinstaller --onefile --target-arch arm64 --name proxypin-mcp-server-macos-${{ matrix.arch }} proxypin_mcp_server.py
-        else
-          pyinstaller --onefile --target-arch x86_64 --name proxypin-mcp-server-macos-${{ matrix.arch }} proxypin_mcp_server.py
-        fi
+        # 简化构建过程，只使用原生架构避免交叉编译问题
+        pyinstaller --onefile --name proxypin-mcp-server-macos-${{ matrix.arch }} proxypin_mcp_server.py
         
     - name: Create release info
       run: |
