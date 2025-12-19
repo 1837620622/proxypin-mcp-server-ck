@@ -111,11 +111,11 @@ def create_optimized_session() -> requests.Session:
         'Connection': 'keep-alive' if KEEP_ALIVE else 'close'
     })
     
-    # 启用HTTP keep-alive
+    # 设置连接池参数
     if KEEP_ALIVE:
-        from urllib3 import PoolManager
-        session.get_adapter('http://').config._poolmanager_kw.setdefault('block', POOL_BLOCK)
-        session.get_adapter('https://').config._poolmanager_kw.setdefault('block', POOL_BLOCK)
+        # 对于 keep-alive，我们已经在 headers 中设置了 Connection: keep-alive
+        # urllib3 默认会处理连接复用
+        pass
     
     logger.info(f"已创建优化HTTP会话连接 - {__author__} 性能增强版")
     return session
